@@ -1,3 +1,4 @@
+.env
 clients/*
 !clients/.gitkeep
 openvpn-data/*

@@ -11,7 +11,13 @@
 
 ## 1. 調整設定
 
-編輯 `.env`，至少修改這些值：
+先建立 `.env`：
+
+```bash
+cp .env.example .env
+```
+
+再編輯 `.env`，至少修改這些值：
 
 - `OVPN_HOSTNAME_OR_IP`: 你的公開 IP 或網域名稱
 - `OVPN_PORT`: 對外 OpenVPN port，預設 `1194`
