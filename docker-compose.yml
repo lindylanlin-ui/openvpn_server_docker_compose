@@ -1,0 +1,26 @@
+services:
+  openvpn:
+    # 使用社群常見的 OpenVPN 映像，內含 EasyRSA 初始化工具。
+    image: kylemanna/openvpn
+    container_name: openvpn-server
+    restart: unless-stopped
+    cap_add:
+      # 允許容器調整網路介面與路由設定。
+      - NET_ADMIN
+    devices:
+      # 把主機的 TUN 裝置提供給容器，讓 VPN tunnel 能正常運作。
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      # 將主機的 OpenVPN UDP port 對外開放給容器使用。
+      - "${OVPN_PORT:-1194}:1194/udp"
+    volumes:
+      # 持久化儲存憑證、金鑰與產生出來的 OpenVPN 設定。
+      - ./openvpn-data:/etc/openvpn
+    environment:
+      # 初始化 PKI 時不要進入互動式問答。
+      EASYRSA_BATCH: "1"
+      # 建立 CA / server 憑證時使用的 Common Name。
+      EASYRSA_REQ_CN: "${OVPN_SERVER_CN:-OpenVPN-CA}"
+    sysctls:
+      # 允許容器轉送 VPN client 的流量。
+      net.ipv4.ip_forward: "1"
