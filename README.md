@@ -90,6 +90,7 @@ OVPN_CLIENT_TO_CLIENT=false
 - `OVPN_HOSTNAME_OR_IP`
   - 給外部 client 連線用的公開 IP 或 DDNS 網域
   - 如果你家是浮動 IP，建議用 DDNS
+  - 如果你填的是公開 IP，之後公開 IP 一旦改變，就需要重新匯出 `.ovpn` 或手動修改裡面的 `remote` 位址
 - `OVPN_PROTO`
   - 一般家用情境維持 `udp`
 - `OVPN_PORT`
@@ -143,6 +144,13 @@ docker compose logs -f openvpn
 
 你可以為每一台裝置建立一份獨立憑證，建議一台裝置一個名稱。
 
+建議命名方式：
+
+- `iphone-1`
+- `iphone-2`
+- `macbook-air`
+- `ipad`
+
 例如：
 
 ```bash
@@ -151,6 +159,45 @@ docker compose logs -f openvpn
 ./scripts/create-client.sh ipad
 ./scripts/create-client.sh work-laptop
 ```
+
+說明：
+
+- 腳本會先建立該裝置專用的 client 憑證
+- 再匯出一份可直接匯入 OpenVPN client 的 `.ovpn`
+- 如果 OpenVPN 服務尚未啟動，腳本會先自動啟動 `openvpn`
+- 預設會建立「有密碼保護」的 client 私鑰
+- 如果你真的要建立沒有密碼保護的版本，才額外加上 `--no-pass`
+
+### 建立有密碼保護的 client 憑證
+
+```bash
+./scripts/create-client.sh iphone-1
+```
+
+執行後會要求你輸入兩次憑證密碼。
+
+這種模式的好處是：
+
+- `.ovpn` 就算外流，別人也還需要知道憑證密碼
+- 比較適合手機、筆電這類會帶出門的裝置
+
+### 建立沒有密碼保護的 client 憑證
+
+```bash
+./scripts/create-client.sh iphone-1 --no-pass
+```
+
+這種模式比較方便，但安全性較低。
+
+### 用環境變數自動建立有密碼保護的憑證
+
+如果你要在自動化流程中建立，可先暫時帶入：
+
+```bash
+CLIENT_CERT_PASSWORD='你的密碼' ./scripts/create-client.sh iphone-1
+```
+
+這比較適合進階用法；一般手動操作時，直接讓腳本提示你輸入密碼就好。
 
 輸出檔會在：
 
@@ -169,16 +216,102 @@ clients/work-laptop.ovpn
 
 可使用 OpenVPN Connect 匯入對應的 `.ovpn` 檔。
 
+例如：
+
+- `iphone-1.ovpn` 匯入第一支 iPhone
+- `iphone-2.ovpn` 匯入第二支 iPhone
+
 ### MacBook Air
 
 可使用 OpenVPN Connect 或其他支援 OpenVPN 的 client 匯入 `.ovpn`。
+
+例如：
+
+- `macbook-air.ovpn` 匯入你的 MacBook Air
 
 建議：
 
 - 不同裝置不要共用同一份 `.ovpn`
 - 每台裝置各自建立獨立憑證
 
-## 6. 驗證是否符合你的需求
+## 6. 撤銷遺失或不再使用的裝置憑證
+
+如果手機遺失、舊筆電淘汰，或你不再信任某張憑證，可以把它撤銷。
+
+例如：
+
+```bash
+./scripts/revoke-client.sh iphone-1
+```
+
+腳本會幫你完成：
+
+- 撤銷指定 client 憑證
+- 重新產生 CRL
+- 更新 OpenVPN server 會使用到的 `crl.pem`
+- 重新啟動 OpenVPN 服務，讓撤銷立即生效
+- 刪除本機 `clients/` 內匯出的對應 `.ovpn`
+
+如果你想附上撤銷原因，也可以這樣做：
+
+```bash
+./scripts/revoke-client.sh iphone-1 keyCompromise
+```
+
+常見原因：
+
+- `unspecified`
+- `keyCompromise`
+- `superseded`
+- `cessationOfOperation`
+
+如果你很確定要執行，也可以略過互動確認：
+
+```bash
+./scripts/revoke-client.sh iphone-1 keyCompromise --yes
+```
+
+### 查看憑證狀態
+
+OpenVPN / EasyRSA 會把憑證狀態記錄在 PKI 的 `index.txt`。
+
+你可以用這個指令查看特定憑證：
+
+```bash
+docker compose exec -T openvpn sh -c 'grep -E "iphone-1|iphone-2|macbook-air" /etc/openvpn/pki/index.txt'
+```
+
+如果你想看全部憑證狀態：
+
+```bash
+docker compose exec -T openvpn cat /etc/openvpn/pki/index.txt
+```
+
+常見狀態碼：
+
+- `V`
+  - Valid，代表憑證目前有效
+- `R`
+  - Revoked，代表憑證已撤銷，不應再被接受
+
+例如：
+
+```text
+R	280915081955Z	260613085324Z,keyCompromise	...	unknown	/CN=iphone-1
+```
+
+這一行的意思是：
+
+- `R`
+  - 這張憑證已撤銷
+- 第二欄
+  - 原本憑證到期時間
+- 第三欄
+  - 撤銷時間與撤銷原因
+- 最後面的 `/CN=iphone-1`
+  - 這張憑證的名稱
+
+## 7. 驗證是否符合你的需求
 
 ### 驗證可否連回家
 
@@ -197,7 +330,7 @@ client 連上 VPN 後，打開：
 
 如果顯示的是你家中的公開 IP，就代表「所有流量都走家裡外網」已經成立。
 
-## 7. 主機端注意事項
+## 8. 主機端注意事項
 
 ### 開啟 IPv4 Forwarding
 
@@ -226,7 +359,7 @@ sudo sysctl -w net.ipv4.ip_forward=1
 
 這不是 OpenVPN 的限制，而是所有 VPN 常見的網段重疊問題。
 
-## 8. 隱私與 GitHub 安全
+## 9. 隱私與 GitHub 安全
 
 這個專案目前已經避免把以下內容提交到 GitHub：
 
@@ -274,6 +407,18 @@ docker compose logs -f openvpn
 ./scripts/create-client.sh iphone
 ```
 
+建立無密碼 client：
+
+```bash
+./scripts/create-client.sh iphone --no-pass
+```
+
+撤銷 client：
+
+```bash
+./scripts/revoke-client.sh iphone keyCompromise
+```
+
 停止服務：
 
 ```bash
@@ -282,24 +427,18 @@ docker compose down
 
 ## 目前的認證方式
 
-目前這份專案使用的是：
+目前這份專案支援：
 
 - 憑證認證
-- client 憑證以 `nopass` 方式建立
+- 預設建立有密碼保護的 client 憑證
+- 可選擇建立 `--no-pass` 的 client 憑證
 
 這代表：
 
-- 你仍然是在使用憑證驗證
-- 但 `.ovpn` 一旦外流，別人就可能拿去連線
+- 有密碼保護的 `.ovpn` 外流時，風險會比無密碼版本低
+- 但只要裝置遺失、設定檔外流、或你懷疑金鑰遭到複製，仍應盡快撤銷該憑證
 
 所以務必妥善保管：
 
 - `clients/*.ovpn`
 - `openvpn-data/`
-
-如果你之後想升級成更嚴格的模式，我可以再幫你補：
-
-- 憑證加密碼
-- 撤銷遺失裝置的憑證
-- 多因素驗證
-- 固定 client IP
