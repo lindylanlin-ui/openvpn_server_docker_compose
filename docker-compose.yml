@@ -11,7 +11,7 @@ services:
       # 把主機的 TUN 裝置提供給容器，讓 VPN tunnel 能正常運作。
       - /dev/net/tun:/dev/net/tun
     ports:
-      # 將主機的 OpenVPN UDP port 對外開放給容器使用。
+      # 將主機的 OpenVPN 連接埠對外開放給容器使用。
       - "${OVPN_PORT:-1194}:1194/udp"
     volumes:
       # 持久化儲存憑證、金鑰與產生出來的 OpenVPN 設定。
@@ -22,5 +22,5 @@ services:
       # 建立 CA / server 憑證時使用的 Common Name。
       EASYRSA_REQ_CN: "${OVPN_SERVER_CN:-OpenVPN-CA}"
     sysctls:
-      # 允許容器轉送 VPN client 的流量。
+      # 允許容器轉送 VPN client 的流量，讓 client 可經由家中外網上網。
       net.ipv4.ip_forward: "1"

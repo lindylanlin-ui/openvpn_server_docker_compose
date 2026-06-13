@@ -1,5 +1,10 @@
+# 本機實際部署參數，可能包含公開 IP、DDNS 或其他私人設定。
 .env
+
+# 匯出的 client 設定檔屬於敏感資料，不進版控。
 clients/*
 !clients/.gitkeep
+
+# OpenVPN server 的憑證、私鑰與運行設定都屬於敏感資料，不進版控。
 openvpn-data/*
 !openvpn-data/.gitkeep
