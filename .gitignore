@@ -8,3 +8,6 @@ clients/*
 # OpenVPN server 的憑證、私鑰與運行設定都屬於敏感資料，不進版控。
 openvpn-data/*
 !openvpn-data/.gitkeep
+logs/*.log
+logs/*.log-*
+logs/*.gz

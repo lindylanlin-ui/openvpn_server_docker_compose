@@ -1,0 +1,11 @@
+/home/tuffy/project/openvpn_server_docker_compose/logs/*.log {
+    su tuffy tuffy
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    dateext
+    copytruncate
+}
