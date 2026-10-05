@@ -78,7 +78,8 @@ mkdir -p clients
 echo "正在為 ${CLIENT_NAME} 建立 client 憑證 ..."
 # 透過 EasyRSA 建立 client 憑證與私鑰，預設使用密碼保護私鑰。
 if [ "$PASS_MODE" = "--no-pass" ]; then
-  docker compose run --rm -T openvpn easyrsa build-client-full "$CLIENT_NAME" nopass
+  docker compose run --rm -T --entrypoint /bin/sh openvpn \
+    -c 'exec easyrsa build-client-full "$1" nopass' sh "$CLIENT_NAME"
 else
   if [ -z "${CLIENT_CERT_PASSWORD:-}" ]; then
     if [ ! -t 0 ] || [ ! -t 1 ]; then
@@ -104,7 +105,7 @@ else
     unset PASSWORD_1 PASSWORD_2
   fi
 
-  docker compose run --rm -T \
+  docker compose run --rm -T --entrypoint /bin/sh \
     -e CLIENT_CERT_PASSWORD="$CLIENT_CERT_PASSWORD" \
     openvpn \
     sh -c 'exec easyrsa --batch --passout=env:CLIENT_CERT_PASSWORD build-client-full "$1"' sh "$CLIENT_NAME"
@@ -115,6 +116,7 @@ echo "正在匯出 ${CLIENT_NAME} 的 .ovpn 設定檔 ..."
 TMP_CONTAINER_OVPN="/tmp/${CLIENT_NAME}.ovpn"
 docker compose exec -T openvpn sh -c "OPENVPN=/etc/openvpn ovpn_getclient \"$CLIENT_NAME\" > \"$TMP_CONTAINER_OVPN\""
 docker cp "${OPENVPN_CONTAINER_ID}:${TMP_CONTAINER_OVPN}" "clients/${CLIENT_NAME}.ovpn"
+chmod 600 "clients/${CLIENT_NAME}.ovpn"
 docker exec "$OPENVPN_CONTAINER_ID" rm -f "$TMP_CONTAINER_OVPN"
 
 echo "已輸出 client 設定檔：clients/${CLIENT_NAME}.ovpn"
